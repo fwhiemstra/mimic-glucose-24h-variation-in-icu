@@ -353,38 +353,6 @@ ggsave(plt_example_patient, filename=paste0("2-output/mimic-iv_glucose-project_0
 ########################################################################################################################
 ##### Example of ICU feeding pattern -----
 
-example_stayid <- 30009339
-example_data <- df_nut_enteral %>% filter(stay_id==example_stayid)
-# - Nieuwe rij ovor elke dag maken
-# - Elke dag apart plotten? 
-
-plt_feeding_actogram <- df_nut_enteral %>% filter(stay_id==example_stayid) %>%
-  ggplot + theme_bw() + 
-  geom_rect(aes(ymin=factor(stay_id), ymax=factor(stay_id), xmin=0, xmax=outtime_seq), colour="grey90", fill="grey90", size=3)+
-  geom_segment(size=3, alpha=0.7, color="#882255",aes(x=starttime_nut_seq, xend=endtime_nut_seq, y=factor(stay_id), yend=factor(stay_id)))+
-  scale_x_continuous(breaks=seq(0, 2400, by=24))
-plt_feeding_actogram
-
-##Option 2: Overview of glucose sampling & feeding (examples) -----
-set.seed(3434)
-randompat <- sample(unique(df_nut_enteral$stay_id[df_nut_enteral$nutritiongroup=="Enteral feeding only"]), 10)
-
-
-pl_nut_gluc_measurements <- df_nut_enteral %>% filter(stay_id %in% randompat)  %>% 
-  ggplot() + theme_bw()+
-  geom_rect(aes(ymin=factor(stay_id), ymax=factor(stay_id), xmin=0, xmax=outtime_seq), colour="grey90", fill="grey90", size=3)+
-  geom_segment(size=3, alpha=0.7, color="#882255",aes(x=starttime_nut_seq, xend=endtime_nut_seq, y=factor(stay_id), yend=factor(stay_id)))+
-  scale_x_continuous(breaks=seq(0, 2400, by=24))+
-  coord_cartesian(xlim=c(0, 400))+
-  theme(legend.position = "bottom", axis.text=element_text(color="black"))+
-  xlab("Time (h since midnight of first day in ICU)")+ylab("Patient")+
-  theme(legend.position = "none")
-pl_nut_gluc_measurements
-
-ggsave(pl_nut_gluc_measurements, filename=paste0("2-output/mimic-iv_glucose-project_05_time-of-day-example_timing_gluc-nut.png"), dpi=600, width=6, height=4)
-
-
-##Option 3: Feeding 'actograms'----
 samplepat <- c(32795641, 38870879)
 
 df_nut_enteral_intervals <- df_nut_enteral %>% filter(stay_id %in% samplepat) %>% 
@@ -410,7 +378,6 @@ dfhour_feeding <- df_nut_enteral %>% ungroup() %>% filter(stay_id %in% samplepat
          day = time_seq %/% 24,
          time_dec = time_seq %% 24,
          patnumplot = ifelse(stay_id == c(32795641), "#1", "#2"))
-
 
 pl_feedingacto <- dfhour_feeding %>% 
   group_by(stay_id, day, feeding_yn) %>% 
