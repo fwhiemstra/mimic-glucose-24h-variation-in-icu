@@ -32,8 +32,8 @@ df_gluc = pd.read_csv(os.path.join(file_path, file_name))
 ## Select variables
 gluc_level = df_gluc['glucose_value_mmolL']
 time_variable = df_gluc['time_dec']
-static_variables = df_gluc[['age_cat', 'gender', 'diabetes_status']]
-dynamic_variables = df_gluc[["insu_yn", "dext_yn", "glucocorticoid_yn", "rate_nut_cat"]]
+static_variables = df_gluc[['age', 'sex', 'diabetes_status']]
+dynamic_variables = df_gluc[["rate_insu", "rate_dext", "glucocorticoid_yn", "rate_nut_cho"]]
 
 ## Create dummy variables
 static_variables_dummies = pd.get_dummies(static_variables, drop_first=True)
@@ -85,11 +85,11 @@ if repeat_hyperparameter_tuning == 1:
     print('Total time hyperparameter tuning: {}'.format(datetime.datetime.now()-starttime))
 
 else:
-    params = {'max_depth': 5,
-              'eta': 0.05,
+    params = {'colsample_bytree': 0.75,
+              'eta': 0.1,
+              'max_depth': 5,
+              'min_child_weight': 10,
               'n_estimators': 150,
-              'min_child_weight': 5,
-              'colsample_bytree': 0.75,
               'subsample': 0.75}
 
 #%% #################################################################
@@ -120,15 +120,14 @@ plt.rcParams['font.family'] = 'Arial'
 plt.rcParams['font.size'] = 10
 
 # Change feature names for plots:
-features = features.rename(columns={'time_dec': 'Time (decimals)',
-                                    'age_cat_(50,70)': 'Age 50-70 years',
-                                    'age_cat_(70, Inf)': 'Age > 70 years',
-                                    'gender_M': 'Male sex',
+features = features.rename(columns={'time_dec': 'Time',
+                                    'age': 'Age',
+                                    'sex_M': 'Male sex',
                                     'diabetes_status_y': 'Diabetes',
-                                    'insu_yn_y': 'Insulin administration',
-                                    'dext_yn_y': 'Dextrose administration',
+                                    'rate_insu': 'Insulin administration rate',
+                                    'rate_dext': 'Dextrose administration rate',
                                     'glucocorticoid_yn_y': 'Glucocorticoids administration',
-                                    'rate_nut_cat_→50 mL/h': 'Enteral nutrition rate > 50 mL/h'})
+                                    'rate_nut_cho': 'Carbohydrate administration rate'})
 
 # Randomly select a sample of features for SHAP analysis
 features_shapsample = features.sample(n=5000, random_state=42)
@@ -195,6 +194,48 @@ plt.savefig(os.path.join(folder_figures, 'XGboost-analysis_SHAP_global_bar_plot.
 plt.savefig(os.path.join(folder_figures, 'XGboost-analysis_SHAP_global_bar_plot.eps'), dpi=600)
 
 
+#%% SHAP dependency plots
+plt.close('all')
+fig4, ax = plt.subplots(2,2, figsize=(10, 8)) #, plt.gcf(), plt.gca()
+
+## Cabrohydrate administration rate
+n = 6
+shap.dependence_plot(n, shap_values, features_shapsample, interaction_index=None,
+                     color='black', dot_size=10, ax=ax[0, 0])
+ax[0,0].tick_params(labelsize=8)
+ax[0,0].set_xlabel(features_shapsample.columns[n], fontsize=10)
+ax[0,0].set_ylabel("SHAP value", fontsize=10)
+ax[0, 0].text(-0.1, 1.0, 'A', transform=ax[0, 0].transAxes, fontsize=12, fontweight='bold')
+
+## Insulin administration rate
+n = 4
+shap.dependence_plot(n, shap_values, features_shapsample, interaction_index=None,
+                     color='black', dot_size=10, ax=ax[0, 1])
+ax[0,1].tick_params(labelsize=8)
+ax[0,1].set_xlabel(features_shapsample.columns[n], fontsize=10)
+ax[0,1].set_ylabel("SHAP value", fontsize=10)
+ax[0,1].text(-0.1, 1.0, 'B', transform=ax[0, 1].transAxes, fontsize=12, fontweight='bold')
 
 
+## Detrose administration rate
+n = 5
+shap.dependence_plot(n, shap_values, features_shapsample, interaction_index=None,
+                     color='black', dot_size=10, ax=ax[1, 0])
+ax[1,0].tick_params(labelsize=8)
+ax[1,0].set_xlabel(features_shapsample.columns[n], fontsize=10)
+ax[1,0].set_ylabel("SHAP value", fontsize=10)
+ax[1,0].text(-0.1, 1.0, 'C', transform=ax[1, 0].transAxes, fontsize=12, fontweight='bold')
 
+## Age
+n = 1
+shap.dependence_plot(n, shap_values, features_shapsample, interaction_index=None,
+                     color='black', dot_size=10, ax=ax[1, 1])
+ax[1,1].tick_params(labelsize=8)
+ax[1,1].set_xlabel(features_shapsample.columns[n], fontsize=10)
+ax[1,1].set_ylabel("SHAP value", fontsize=10)
+ax[1,1].text(-0.1, 1.0, 'D', transform=ax[1, 1].transAxes, fontsize=12, fontweight='bold')
+
+plt.tight_layout()
+
+plt.savefig(os.path.join(folder_figures, 'XGboost-analysis_SHAP_dependency_plots_continuous_variables.png'), dpi=600)
+plt.savefig(os.path.join(folder_figures, 'XGboost-analysis_SHAP_dependency_plots_continuous_variables.eps'), dpi=600)

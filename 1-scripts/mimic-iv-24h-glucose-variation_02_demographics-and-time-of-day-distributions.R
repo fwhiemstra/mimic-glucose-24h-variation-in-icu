@@ -1,9 +1,10 @@
-# Run-Time Environment: 	R version 4.0.3 & R Studio 1.4.1106
+# Run-Time Environment: 	R version 4.3.1 
 # Authors:				        Floor Hiemstra & Laura Kervezee
-# Date created:           August 2023
+# Date created:           January 2024
 # Project:      			    24-hour glucose variation in ICU patients
 # Filename:               mimic-iv-24h-glucose-variation_02_demographics-and-time-of-day-distributions
-# Purpose:                
+# Purpose:                - Calculate demographics and characteristics of patients and glucose measurements
+#                         - Plot time distributions of 
 # Dependencies:           mimic-iv-24h-glucose-variation_01_preprocessing			    
 
 
@@ -16,32 +17,55 @@ library(cowplot)
 library(RColorBrewer)
 library(lubridate)
 
+########################################################################################################################
+##### Load data from csv -----
+df_gluc_nut_variables <- read_csv("2-output/mimic-iv_24h-glucose-variation_01_glucose-incl-covariates.csv", lazy=F, show_col_types=FALSE)
+df_gluc_all <- read_csv("2-output/mimic-iv_24h-glucose-variation_01_all_gluc_measurements.csv", lazy=F, show_col_types=FALSE)
+df_nut_enteral <- read_csv("2-output/mimic-iv_24h-glucose-variation_01_enteralfeeding.csv", lazy=F, show_col_types=FALSE)
+
+## OR ##
+
+########################################################################################################################
+##### Load data from script -----
+#source("C:\Users\fwhiemstra\Documents\mimic-glucose\1-scripts\R script versie 4\mimic-iv-24h-glucose-variation_01_preprocessing.R")
 
 ########################################################################################################################
 ##### Patient & glucose measurement characteristics -----
-stay_ids_incl_patients <- unique(df_gluc_nut_variables$stay_id)
-hamd_ids_incl_patients <- unique(df_gluc_nut_variables$hadm_id)
-subject_ids_incl_patients <- unique(df_gluc_nut_variables$subject_id)
+stayids_incl_subjects <- unique(df_gluc_nut_variables$stay_id)
+hadmids_incl_subjects <- unique(df_gluc_nut_variables$hadm_id)
+subjectids_incl_subjects <- unique(df_gluc_nut_variables$subject_id)
 
-df_gluc_all_incl_patients <- df_gluc_all %>% filter(stay_id %in% stay_ids_incl_patients)
-
-##### General patient characteristics -----
+##### Patient characteristics -----
 df_gluc_nut_variables %>% 
-  group_by(stay_id, los, age, gender, diabetes_status, died_hospstay_yn) %>% 
+  group_by(stay_id, los, age, sex, diabetes_status, died_hospstay_yn, admtype_cat, race_cat, oasis, sofa) %>% 
   summarize() %>%
   ungroup() %>% select(-stay_id) %>% 
   tbl_summary()
 
+## Count how many ICU days
+icu_days_per_stay_id <- df_gluc_nut_variables %>%
+  group_by(stay_id) %>%
+  summarise(unique_count = n_distinct(time_icudays))
+total_icu_days <- sum(icu_days_per_stay_id$unique_count)
 
 ##### Patient characteristics: Ventilation -----
 # Summarize ventilation status during ICU stay as follows: 
 # - invasive = patient had invasive ventilation at any moment during ICU stay
 # - non-invasive = patient had non-invasive ventilation at any moment during ICU stay 
 # - none = patient did not receive any invasive/non-invasive ventilation during ICU stay
-df_ventilation_incl_patients <- tbl(mimic_derived, "ventilation") %>% collect() %>% filter(stay_id %in% stay_ids_incl_patients)  %>% 
+mimic_derived <- dbConnect(RPostgres::Postgres(),
+                           host     = "localhost",
+                           dbname   = "mimic",
+                           user     = "postgres",
+                           password = "postgres",
+                           bigint   = "integer",
+                           port="5432",
+                           options  = "-c search_path=mimiciv_derived")
+
+df_ventilation_incl_patients <- tbl(mimic_derived, "ventilation") %>% collect() %>% filter(stay_id %in% stayids_incl_subjects)  %>% 
     # ventilation data is not available for all patients. Absence of ventilation data is considered as no ventilation. To include ICU_stays without ventilation
     # data to the dataframe, a right join is with a dataframe consisting of all stay_ids is done. 
-    right_join(data.frame(stay_id = stay_ids_incl_patients, extra_row_for_merge = stay_ids_incl_patients), by="stay_id") %>% 
+    right_join(data.frame(stay_id = stayids_incl_subjects, extra_row_for_merge = stayids_incl_subjects), by="stay_id") %>% 
     mutate(ventilation_status_cat = case_when(ventilation_status %in% c("InvasiveVent", "Tracheostomy") ~ "invasive",
                                             ventilation_status %in% c("NonInvasiveVent", "HFNC", "SupplementalOxygen") ~ "noninvasive",
                                             ventilation_status %in% c("None") ~ "none", 
@@ -62,12 +86,20 @@ df_ventilation_incl_patients %>% group_by(stay_id) %>%
 
 
 ##### Patient characteristics: Insulin administration -----
+mimic_icu <- dbConnect(RPostgres::Postgres(),
+                       host     = "localhost",
+                       dbname   = "mimic",
+                       user     = "postgres",
+                       password = "postgres",
+                       bigint   = "integer",
+                       port="5432",
+                       options  = "-c search_path=mimiciv_icu")
 dfItems <- tbl(mimic_icu, "d_items") %>% collect() #table with definition of itemids (e.g. types of nutrition)
 items_insulin <- dfItems %>% filter(grepl("insulin", tolower(label)) & category=="Medications") %>%
   select(itemid, label)
 itemid_insulin <- items_insulin$itemid
 df_insulin <- tbl(mimic_icu, "inputevents") %>% filter(itemid %in% itemid_insulin) %>% 
-  filter(stay_id %in% stay_ids_incl_patients) %>% filter(amount > 0) %>% collect() %>% 
+  filter(stay_id %in% stayids_incl_subjects) %>% filter(amount > 0) %>% collect() %>% 
   left_join(items_insulin, by="itemid")
 ## df_insulin = dataframe from patients with any insulin administration during their ICU stay. 
 length(unique(df_insulin$stay_id)) # number of patients/ICU stays with insulin at any moment during their ICU stay
@@ -76,19 +108,28 @@ length(unique(df_insulin$stay_id)) # number of patients/ICU stays with insulin a
 items_dext <- dfItems %>% filter(grepl("dextrose", tolower(label)))  
 itemid_dext <- items_dext$itemid
 df_dext <- tbl(mimic_icu, "inputevents") %>% filter(itemid %in% itemid_dext) %>% 
-  filter(stay_id %in% stay_ids_incl_patients) %>% filter(amount > 0) %>% collect() %>% 
+  filter(stay_id %in% stayids_incl_subjects) %>% filter(amount > 0) %>% collect() %>% 
   left_join(items_dext, by="itemid")
 ## df_dext = dataframe from patients with any dextrose administration during their ICU stay. 
 length(unique(df_dext$stay_id)) # number of patients/ICU stays with dextrose at any moment during their ICU stay
 
 
 ##### Patient characteristics: Glucocorticoids administration -----
-df_icustays_selection <- tbl(mimic_icu, "icustays") %>% filter(stay_id %in% stay_ids_incl_patients) %>% collect() %>% 
+df_icustays_selection <- tbl(mimic_icu, "icustays") %>% filter(stay_id %in% stayids_incl_subjects) %>% collect() %>% 
   select(subject_id, stay_id, hadm_id, intime, outtime, los) %>% 
   mutate(intime_seq = as.numeric(difftime(intime, as.Date(intime), units="hours")),
          outtime_seq = as.numeric(difftime(outtime, as.Date(intime), units="hours")))
 
-cort_emar_tot <- tbl(mimic_hosp, "emar") %>% filter(hadm_id %in% hamd_ids_incl_patients) %>% 
+mimic_hosp <- dbConnect(RPostgres::Postgres(),
+                        host     = "localhost",
+                        dbname   = "mimic",
+                        user     = "postgres",
+                        password = "postgres",
+                        bigint   = "integer",
+                        port="5432",
+                        options  = "-c search_path=mimiciv_hosp")
+
+cort_emar_tot <- tbl(mimic_hosp, "emar") %>% filter(hadm_id %in% hadmids_incl_subjects) %>% 
   filter(grepl("dexamethasone", tolower(medication)) | grepl("cortisone", tolower(medication)) | grepl("prednisolone", tolower(medication)) | grepl("prednisone", tolower(medication))) %>% 
   collect() %>% 
   # Add icustay information
@@ -104,7 +145,7 @@ cort_emar_tot <- tbl(mimic_hosp, "emar") %>% filter(hadm_id %in% hamd_ids_incl_p
 
 # Use pharmacy table to filter glucocorticoid creams and other non-oral non-iv routes of administration
 cort_pharmid_tot <- unique(cort_emar_tot$pharmacy_id)
-cort_pharm_tot <- tbl(mimic_hosp, "pharmacy") %>% filter(hadm_id %in% hamd_ids_incl_patients) %>%  
+cort_pharm_tot <- tbl(mimic_hosp, "pharmacy") %>% filter(hadm_id %in% hadmids_incl_subjects) %>%  
   filter(grepl("dexamethasone", tolower(medication)) | grepl("cortisone", tolower(medication)) | grepl("prednisolone", tolower(medication)) | grepl("prednisone", tolower(medication))) %>% 
   filter(pharmacy_id %in% cort_pharmid_tot) %>% collect() %>% 
   # Add icustay information
@@ -139,7 +180,7 @@ median_glucose_per_patient_per_day <- df_gluc_nut_variables %>% group_by(stay_id
 median_glucose_per_patient_per_day
 
 ##### Glucose measurements characteristics - Medication administration and sample type -----
-df_gluc_nut_variables %>% select(ventilation_status_cat, insu_yn, dext_yn, glucocorticoid_yn, sample_type, rate_nut_cat) %>% 
+df_gluc_nut_variables %>% select(ventilation_status_cat, insu_yn, dext_yn, glucocorticoid_yn, sample_type) %>% 
   tbl_summary()
 
 
@@ -187,11 +228,50 @@ plt_gluc_time_distribution
 
 ##### Enteral feeding -----
 df_nut_enteralrate <- df_nut_enteral %>% mutate(difftime = endtime_nut_seq - starttime_nut_seq,
-                                                rate = amount_nut / (endtime_nut_seq - starttime_nut_seq),
+                                                rate_nut = amount_nut / (endtime_nut_seq - starttime_nut_seq),
                                                 starttime_dec = starttime_nut_seq %% 24,
-                                                endtime_dec = endtime_nut_seq %% 24)
-#memory.limit(15000)
-#sample_pat <- sample(patients_incl_nut, 1000)
+                                                endtime_dec = endtime_nut_seq %% 24) %>%
+  filter(stay_id %in% stayids_incl_subjects)
+
+df_nut_enteralrate <- df_nut_enteralrate %>% 
+  mutate(rate_nut_cho = case_when(
+    itemid_nut %in% c(225970, 229583) ~ rate_nut * 0, # Beneprotein
+    itemid_nut %in% c(227979) ~ rate_nut * 0.067510549, # Boost Glucose Control
+    itemid_nut %in% c(228355) ~ rate_nut * 0.189873418, # Enlive
+    itemid_nut %in% c(226875, 225937) ~ rate_nut * 0.139240506, # Ensure
+    itemid_nut %in% c(226877) ~ rate_nut * 0.202531646, # Ensure Plus
+    itemid_nut %in% c(229574) ~ rate_nut * NA, # Fiber Supplement (i.e. Banana Flakes)
+    itemid_nut %in% c(227698, 227699, 227696, 227695) ~ rate_nut * 0.156118143, # Fibersource HN
+    itemid_nut %in% c(228356, 228359) ~ rate_nut * 0.11, # Glucerna
+    itemid_nut %in% c(229013) ~ rate_nut * 0.113924050632911, # Glucerna 1.2
+    itemid_nut %in% c(229295) ~ rate_nut * 0.132911392405063, # Glucerna 1.5
+    itemid_nut %in% c(226023, 226020, 226022, 221207) ~ rate_nut * 0.132, # Impact
+    itemid_nut %in% c(226027, 225928) ~ rate_nut * 0.132, # Impact with Fiber
+    itemid_nut %in% c(228131, 228132, 228133, 228134, 228135) ~ rate_nut * 0.167088608, # Isosource 1.5
+    itemid_nut %in% c(229010) ~ rate_nut * 0.169620253164557, # Jevity 1.2
+    itemid_nut %in% c(229011) ~ rate_nut * 0.215611814345992, # Jevity 1.5
+    itemid_nut %in% c(228348, 228351) ~ rate_nut * 0.147272727, # Nepro
+    itemid_nut %in% c(227973, 227974, 227975) ~ rate_nut * 0.184810127, # NovaSource Renal 
+    itemid_nut %in% c(226019, 226016, 226017, 227518, 225931) ~ rate_nut * 0.196, # Nutren 2.0
+    itemid_nut %in% c(226882, 226881, 226880) ~ rate_nut * 0.10, # Nutren Pulmonary
+    itemid_nut %in% c(226031, 226028, 226030, 221036) ~ rate_nut * 0.184810127, # Nutren Renal
+    itemid_nut %in% c(229297) ~ rate_nut * 0.20337552742616, # Osmolite 1.5 
+    itemid_nut %in% c(226039, 226036, 226038, 225930) ~ rate_nut * 0.188, # Peptamen 1.5
+    itemid_nut %in% c(228383) ~ rate_nut * 0.078, # Peptamen Bariatric 
+    itemid_nut %in% c(225929) ~ rate_nut * NA, # Probalance
+    itemid_nut %in% c(229009) ~ rate_nut * 0.131223628691983, # Promote
+    itemid_nut %in% c(229014) ~ rate_nut * 0.139240506329114, # Promote with Fiber
+    itemid_nut %in% c(228360, 228361, 228363) ~ rate_nut * 0.105485232, # Pulmocare
+    itemid_nut %in% c(226047, 226044, 226046, 225935) ~ rate_nut * 0.112, # Replete
+    itemid_nut %in% c(226051, 226048, 226049, 226050, 225936) ~ rate_nut * 0.124, # Replete with Fiber
+    itemid_nut %in% c(228364, 228367) ~ rate_nut * 0.219, # Two Cal HN
+    itemid_nut %in% c(229012) ~ rate_nut * 0.186497890295359, # Vital 1.5
+    itemid_nut %in% c(229296) ~ rate_nut * 0.112658227848101, # Vital High Protein
+    itemid_nut %in% c(226059, 225934) ~ rate_nut * 0.00256, # Vivonex
+    TRUE ~ NA_real_  # If none of the conditions match, specify the default value
+  ))
+
+
 dfhour_rate <- df_nut_enteral %>% ungroup() %>% #filter(stay_id %in% sample_pat) %>% 
   select(stay_id, outtime_seq, intime_seq) %>% 
   ungroup() %>% distinct(stay_id, outtime_seq, intime_seq) %>% 
@@ -202,29 +282,30 @@ dfhour_rate <- df_nut_enteral %>% ungroup() %>% #filter(stay_id %in% sample_pat)
   mutate(outtime_seq = ceiling(max(outtime_seq, na.rm=T)),
          intime_seq = floor(max(intime_seq, na.rm=T ))) %>% 
   #add nutrition intervals to indicate whther there was feeding for each hour during ICU stay
-  left_join(df_nut_enteralrate %>% ungroup() %>% select(stay_id, starttime_nut_seq, endtime_nut_seq, rate), by="stay_id") %>% 
+  left_join(df_nut_enteralrate %>% ungroup() %>% select(stay_id, starttime_nut_seq, endtime_nut_seq, rate_nut_cho), by="stay_id", relationship="many-to-many") %>% 
   arrange(stay_id, time_seq) %>%  
-  filter(time_seq >= ceiling(starttime_nut_seq) & time_seq < ceiling(endtime_nut_seq)) #this line is different from dfhour_feeding to account for consecutive periods of feeding
+  filter(time_seq >= ceiling(starttime_nut_seq) & time_seq < ceiling(endtime_nut_seq)) %>% #this line is different from dfhour_feeding to account for consecutive periods of feeding
+  filter(!is.na(rate_nut_cho)) # Remove rows with NaN values in rate_nut_cho column
 
 
 dfhour_ratesumm <- dfhour_rate %>% mutate(time_dec = time_seq %% 24,
-                                          rate_cat = cut(rate, breaks=c(-Inf, seq(20, 100, by=20), Inf))) %>% 
-  group_by(time_dec, rate_cat) %>% 
+                                          rate_nut_cho_cat = cut(rate_nut_cho, breaks= c(-Inf, 4.5, 6.5, 8.5, Inf))) %>% 
+  group_by(time_dec, rate_nut_cho_cat) %>% 
   summarize(n = n()) %>% 
   mutate(prop = n/sum(n)) %>% 
-  mutate(rate_cat = factor(rate_cat, levels=c("(-Inf,20]", "(20,40]", "(40,60]", "(60,80]", "(80,100]", "(100, Inf]"),
-                           labels=c("\u2264 20 mL/h", "20-40 mL/h", "40-60 mL/h", "60-80 mL/h", "80-100 mL/h", "\u2265 100 mL/h" )))
+  mutate(rate_nut_cho_cat = factor(rate_nut_cho_cat, levels=c("(-Inf,4.5]", "(4.5,6.5]", "(6.5,8.5]", "(8.5, Inf]"),
+                                   labels=c("\u2264 4.5 grams/hour", "4.5-6.5 grams/hour", "6.5-8.5 grams/hour", "\u2265 8.5 grams/hour" )))
 
-plt_entrate_timeofday <- ggplot(dfhour_ratesumm, aes(x=time_dec, y=prop, fill=rate_cat))+ theme_bw()+
+plt_entrate_timeofday <- ggplot(dfhour_ratesumm, aes(x=time_dec, y=prop, fill=rate_nut_cho_cat))+ theme_bw()+
   geom_bar(stat="identity", color="#6BAED6", position = position_stack(reverse = T), size=0.2)+
   scale_x_continuous(breaks=seq(0,24, by=4), expand=c(0,0), limits=c(-0.5,23.5))+
   scale_y_continuous(expand=c(0,0))+
-  scale_fill_manual(values = (c(brewer.pal(7, "Blues")[2:7])), name="Enteral feeding rate") +
+  scale_fill_manual(values = (c(brewer.pal(7, "Blues")[2:7])), name="Carbohydrate administration rate") +
   xlab("Time of day (h)")+ylab("Proportion of glucose measurements")+
   coord_cartesian(clip="off")+
-  guides(fill=guide_legend(title.position = "top", title.hjust = 0.5))+
-  theme_plot + 
-  ggtitle("Enteral feeding rate")
+  guides(fill = guide_legend(title.position = "top", title.hjust = 0.5, ncol = 2)) +  # Set ncol to 2 for two lines
+  theme_plot ##+ 
+  ##ggtitle("")
 plt_entrate_timeofday
 
 
@@ -320,7 +401,6 @@ ggsave(plot = plts_time_distribution_administrations, width = 8, height = 3, dpi
 ########################################################################################################################
 ##### Example of timing of enteral feeding, glucose measurements and medication administration -----
 #SELECTION <- df_gluc_nut_variables %>% filter(dext_yn == "y" & glucocorticoid_yn == "y" & insu_yn == "y") 
-
 example_stayid <- 30045625     
 dfexall <- df_gluc_nut_variables %>% filter(stay_id == example_stayid) %>% filter(time_seq > 72 & time_seq < 144)
 dfexall_nut <- dfexall %>% distinct(stay_id, starttime_nut_seq , endtime_nut_seq, intime) %>% drop_na
@@ -346,8 +426,8 @@ plt_example_patient <- ggplot(dfexall , aes(x=time_seq, y="glucose"))+theme_bw()
   theme_plot
 plt_example_patient
 
-ggsave(plt_example_patient, filename=paste0("2-output/mimic-iv_glucose-project_05_time-of-day-example_pat30045625.png"), dpi=600, width=6, height=2)
-ggsave(plt_example_patient, filename=paste0("2-output/mimic-iv_glucose-project_05_time-of-day-example_pat30045625.SVG"), dpi=600, width=6, height=2)
+ggsave(plt_example_patient, filename=paste0("2-output/mimic-iv_glucose-project_02_time-of-day-example_pat30045625.png"), dpi=600, width=6, height=2)
+ggsave(plt_example_patient, filename=paste0("2-output/mimic-iv_glucose-project_02_time-of-day-example_pat30045625.SVG"), dpi=600, width=6, height=2)
 
 
 ########################################################################################################################
@@ -369,7 +449,7 @@ dfhour_feeding <- df_nut_enteral %>% ungroup() %>% filter(stay_id %in% samplepat
   mutate(outtime_seq = ceiling(max(outtime_seq, na.rm=T)),
          intime_seq = floor(max(intime_seq, na.rm=T ))) %>% 
   #add nutrition intervals to indicate whther there was feeding for each hour during ICU stay
-  left_join(df_nut_enteral_intervals %>% ungroup() %>% select(stay_id, nut_interval_start, nut_interval_end), by="stay_id") %>% 
+  left_join(df_nut_enteral_intervals %>% ungroup() %>% select(stay_id, nut_interval_start, nut_interval_end), by="stay_id", relationship="many-to-many") %>% 
   arrange(stay_id, time_seq) %>%  
   filter(time_seq >= floor(nut_interval_start) & time_seq < ceiling(nut_interval_end)) %>% 
   group_by(stay_id) %>% 
