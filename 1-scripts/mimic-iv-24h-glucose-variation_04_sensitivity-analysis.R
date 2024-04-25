@@ -405,7 +405,7 @@ plt_sensitivity_analysis <- cowplot::plot_grid(plt_sensanalysis_ventilation,
                                                plt_sensanalysis_time_in_icu,
                                                plt_sensanalysis_sample_type,
                                                plt_sensanalysis_time_to_next,
-                                               ncol=3, nrow=2, axis="tblr", labels=c("A","B","C","D", "E","F"), label_size = 10)
+                                               ncol=3, nrow=2, axis="tblr", labels=c("a","b","c","d", "e","f"), label_size = 10)
 plt_sensitivity_analysis
 
 ggsave(plt_sensitivity_analysis, filename=paste0("2-output/mimic-iv_24h-glucose-variation_04_sensitivity_analyses.png"), dpi=600, width=12, height=7, unit='in')

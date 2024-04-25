@@ -88,7 +88,7 @@ else:
     params = {'colsample_bytree': 0.75,
               'eta': 0.1,
               'max_depth': 5,
-              'min_child_weight': 10,
+              'min_child_weight': 5,
               'n_estimators': 150,
               'subsample': 0.75}
 
@@ -152,8 +152,8 @@ plt.xlim([0, 24])
 plt.tight_layout()
 plt.show()
 
-plt.savefig(os.path.join(folder_figures, 'XGboost-analysis_SHAP_time_of_day.png'), dpi=600)
-plt.savefig(os.path.join(folder_figures, 'XGboost-analysis_SHAP_time_of_day.eps'), dpi=600)
+plt.savefig(os.path.join(folder_figures, 'figure-3b-XGboost-analysis_SHAP_time_of_day.png'), dpi=600)
+plt.savefig(os.path.join(folder_figures, 'figure-3b-XGboost-analysis_SHAP_time_of_day.eps'), dpi=600)
 
 
 ##### SHAP summary plot -----
@@ -174,8 +174,9 @@ cb_ax.set_ylabel("Feature value", fontsize=10)
 plt.tight_layout()
 plt.show()
 
-plt.savefig(os.path.join(folder_figures, 'XGboost-analysis_SHAP_summary_plot.png'), dpi=600)
-plt.savefig(os.path.join(folder_figures, 'XGboost-analysis_SHAP_summary_plot.eps'), dpi=600)
+plt.savefig(os.path.join(folder_figures, 'figure-s5a-XGboost-analysis_SHAP_summary_plot.png'), dpi=600)
+plt.savefig(os.path.join(folder_figures, 'figure-s5a-XGboost-analysis_SHAP_summary_plot.eps'), dpi=600)
+plt.savefig(os.path.join(folder_figures, 'figure-s5a-XGboost-analysis_SHAP_summary_plot.svg'), dpi=600)
 
 
 ##### SHAP Global bar plot -----
@@ -190,8 +191,8 @@ ax.set_ylabel("", fontsize=10)
 plt.tight_layout()
 plt.show()
 
-plt.savefig(os.path.join(folder_figures, 'XGboost-analysis_SHAP_global_bar_plot.png'), dpi=600)
-plt.savefig(os.path.join(folder_figures, 'XGboost-analysis_SHAP_global_bar_plot.eps'), dpi=600)
+plt.savefig(os.path.join(folder_figures, 'figure-s5b-XGboost-analysis_SHAP_global_bar_plot.png'), dpi=600)
+plt.savefig(os.path.join(folder_figures, 'figure-s5b-XGboost-analysis_SHAP_global_bar_plot.eps'), dpi=600)
 
 
 #%% SHAP dependency plots
@@ -205,7 +206,7 @@ shap.dependence_plot(n, shap_values, features_shapsample, interaction_index=None
 ax[0,0].tick_params(labelsize=8)
 ax[0,0].set_xlabel(features_shapsample.columns[n], fontsize=10)
 ax[0,0].set_ylabel("SHAP value", fontsize=10)
-ax[0, 0].text(-0.1, 1.0, 'A', transform=ax[0, 0].transAxes, fontsize=12, fontweight='bold')
+ax[0, 0].text(-0.1, 1.0, 'a', transform=ax[0, 0].transAxes, fontsize=12, fontweight='bold')
 
 ## Insulin administration rate
 n = 4
@@ -214,17 +215,17 @@ shap.dependence_plot(n, shap_values, features_shapsample, interaction_index=None
 ax[0,1].tick_params(labelsize=8)
 ax[0,1].set_xlabel(features_shapsample.columns[n], fontsize=10)
 ax[0,1].set_ylabel("SHAP value", fontsize=10)
-ax[0,1].text(-0.1, 1.0, 'B', transform=ax[0, 1].transAxes, fontsize=12, fontweight='bold')
+ax[0,1].text(-0.1, 1.0, 'b', transform=ax[0, 1].transAxes, fontsize=12, fontweight='bold')
 
 
-## Detrose administration rate
+## Dextrose administration rate
 n = 5
 shap.dependence_plot(n, shap_values, features_shapsample, interaction_index=None,
                      color='black', dot_size=10, ax=ax[1, 0])
 ax[1,0].tick_params(labelsize=8)
 ax[1,0].set_xlabel(features_shapsample.columns[n], fontsize=10)
 ax[1,0].set_ylabel("SHAP value", fontsize=10)
-ax[1,0].text(-0.1, 1.0, 'C', transform=ax[1, 0].transAxes, fontsize=12, fontweight='bold')
+ax[1,0].text(-0.1, 1.0, 'c', transform=ax[1, 0].transAxes, fontsize=12, fontweight='bold')
 
 ## Age
 n = 1
@@ -233,9 +234,9 @@ shap.dependence_plot(n, shap_values, features_shapsample, interaction_index=None
 ax[1,1].tick_params(labelsize=8)
 ax[1,1].set_xlabel(features_shapsample.columns[n], fontsize=10)
 ax[1,1].set_ylabel("SHAP value", fontsize=10)
-ax[1,1].text(-0.1, 1.0, 'D', transform=ax[1, 1].transAxes, fontsize=12, fontweight='bold')
+ax[1,1].text(-0.1, 1.0, 'd', transform=ax[1, 1].transAxes, fontsize=12, fontweight='bold')
 
 plt.tight_layout()
 
-plt.savefig(os.path.join(folder_figures, 'XGboost-analysis_SHAP_dependency_plots_continuous_variables.png'), dpi=600)
-plt.savefig(os.path.join(folder_figures, 'XGboost-analysis_SHAP_dependency_plots_continuous_variables.eps'), dpi=600)
+plt.savefig(os.path.join(folder_figures, 'figure-s6-XGboost-analysis_SHAP_dependency_plots_continuous_variables.png'), dpi=600)
+plt.savefig(os.path.join(folder_figures, 'figure-s6-XGboost-analysis_SHAP_dependency_plots_continuous_variables.eps'), dpi=600)

@@ -377,11 +377,11 @@ plt_glucocorticoid_timeofday
 
 ##### Combine plots 
 plts_time_distribution_gluc_feeding <- cowplot::plot_grid(plt_gluc_time_distribution, plt_entrate_timeofday, 
-                                                          ncol=2, nrow=1, align="hv", axis="tblr", labels=c("A","B"), label_size = 10)
+                                                          ncol=2, nrow=1, align="hv", axis="tblr", labels=c("a","b"), label_size = 10)
 plts_time_distribution_gluc_feeding
 
 plts_time_distribution_administrations <- cowplot::plot_grid(plt_insu_timeofday, plt_dext_timeofday, plt_glucocorticoid_timeofday,
-                                                             ncol=3, nrow=1, align="hv", axis="tblr", labels=c("A","B", "C"), label_size = 10)
+                                                             ncol=3, nrow=1, align="hv", axis="tblr", labels=c("a","b", "c"), label_size = 10)
 plts_time_distribution_administrations
 
 

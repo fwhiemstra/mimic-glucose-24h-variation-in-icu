@@ -262,7 +262,7 @@ plt_residuals_versus_fitted <- ggplot(data.frame(residuals=residuals(lmemodel_gl
 plt_residuals_versus_fitted
 
 plt_hist_and_residuals_versus_fitted <- cowplot::plot_grid(plt_residuals_versus_fitted, plt_hist_residuals,
-                                                           ncol=2, nrow=1, axis="tblr", labels=c("A","B"), label_size = 10)
+                                                           ncol=2, nrow=1, axis="tblr", labels=c("a","b"), label_size = 10)
 
 ggsave(plt_hist_and_residuals_versus_fitted, filename=paste0("2-output/mimic-iv_24h-glucose-variation_03_lmemodel_gluc_time_final_residuals_versus_fitted_and_hist_residuals.png"), 
        dpi=600, width=9, height=4)

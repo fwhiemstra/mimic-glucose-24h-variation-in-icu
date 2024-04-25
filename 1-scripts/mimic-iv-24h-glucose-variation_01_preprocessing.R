@@ -588,7 +588,7 @@ df_insulin <- tbl(mimic_icu, "inputevents") %>% filter(itemid %in% itemid_insuli
   mutate(starttime_insu_seq = as.numeric(difftime(starttime, as.Date(min(intime)), units="hours")),
          endtime_insu_seq = as.numeric(difftime(endtime, as.Date(min(intime)), units="hours"))) %>% 
   arrange(stay_id, starttime_insu_seq) %>% 
-  select(stay_id, starttime_insu_seq, endtime_insu_seq, itemid_insu = itemid, label_insu=label, ordercat_insu = ordercategorydescription, units_insu = amount) %>% 
+  select(stay_id, starttime_insu_seq, endtime_insu_seq, itemid_insu = itemid, label_insu=label, ordercategoryname, ordercat_insu = ordercategorydescription, units_insu = amount) %>% 
   # Correction of start times of insulin (+0.5h) and end times of insulin depending on their mode of action; see e.g. ref. https://www.ncbi.nlm.nih.gov/pubmed/33692359) 
   mutate(
     endtime_insu_seq_corr = case_when(
@@ -616,7 +616,7 @@ df_insulin <- tbl(mimic_icu, "inputevents") %>% filter(itemid %in% itemid_insuli
   mutate(insu_cat = case_when(ordercat_insu %in% c("Continuous Med","Continuous IV") ~ "infusion",
                               ordercat_insu %in% c("Drug Push") ~ "bolus"),
          # Calculate rate of insulin administration (units/hour)
-         rate_insu = units_insu /(endtime_insu_seq - starttime_insu_seq))
+         rate_insu = units_insu /(endtime_insu_seq_corr - starttime_insu_seq_corr))
 
 ## Link insulin administration data to df_gluc_nut_variables dataframe
 dfgluc_insuinfo <- df_gluc_nut_variables %>% ungroup() %>% left_join(df_insulin, by=c("stay_id"), relationship="many-to-many") %>% 
@@ -628,6 +628,7 @@ dfgluc_insuinfo <- df_gluc_nut_variables %>% ungroup() %>% left_join(df_insulin,
   left_join(df_insulin, by=c("stay_id", "starttime_insu_seq_corr", "endtime_insu_seq_corr"), relationship="many-to-many") %>% 
   group_by(stay_id, time_seq, starttime_insu_seq_corr, endtime_insu_seq_corr) %>%
   reframe(insu_cat = paste(insu_cat, collapse="_"),
+          ordercategoryname = paste(ordercategoryname, collapse="_"),
           rate_insu = sum(rate_insu)) # Account for overlapping events
 
 ## Add insulin administration data to df_gluc_nut_variables dataframe
@@ -635,7 +636,7 @@ df_gluc_nut_variables <- df_gluc_nut_variables %>% left_join(dfgluc_insuinfo %>%
   mutate(insu_yn = ifelse(!is.na(starttime_insu_seq_corr), "y","n"),
          rate_insu = ifelse(is.na(rate_insu), 0, rate_insu))  
 
-## Add insulin requirement per day (units per day in ICU; measure of insulin resistance) -----
+## Add insulin requirement per day (units per day in ICU; measure of insulin resistance) 
 df_insu_req <- df_insulin %>% mutate(time_icudays = starttime_insu_seq %/% 24)  %>% 
   group_by(stay_id, time_icudays) %>% 
   summarize(unitsperday_insu = sum(units_insu)) %>% ungroup()
@@ -805,7 +806,7 @@ quantiles
 
 # Add categorized insulin rate variable
 df_gluc_nut_variables$rate_insu_cat <- cut(df_gluc_nut_variables$rate_insu, 
-                                           breaks = c(-Inf, 0, 200, 750, Inf), 
+                                           breaks = c(-Inf, 0, 1.5, 3, Inf), 
                                            include.lowest = TRUE)
 ## Check distribution of data points per category
 table(df_gluc_nut_variables$rate_insu_cat)
